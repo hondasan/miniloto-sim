@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ミニロト 予想シミュレーター プロフェッショナル</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #f3f4f6;
+        }
+        /* ロトのボール風デザイン */
+        .loto-ball {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 1.25rem;
+            color: white;
+            box-shadow: inset -2px -2px 6px rgba(0,0,0,0.3), 2px 2px 4px rgba(0,0,0,0.1);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+        .ball-mini {
+            width: 28px; height: 28px; font-size: 0.8rem;
+        }
+        /* 番号帯ごとの色分け */
+        .ball-yellow { background: linear-gradient(135deg, #fbbf24, #d97706); color: #000; text-shadow: none; }
+        .ball-blue { background: linear-gradient(135deg, #60a5fa, #2563eb); }
+        .ball-red { background: linear-gradient(135deg, #f87171, #dc2626); }
+        .ball-green { background: linear-gradient(135deg, #34d399, #059669); }
+        
+        /* 処理中のスピナー */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="text-gray-800 p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden relative">
+        <!-- ヘッダー -->
+        <div class="relative bg-gradient-to-r from-slate-800 to-indigo-900 p-6 text-white text-center">
+            <h1 class="text-3xl font-black mb-2 tracking-wider mt-2">🎯 ミニロト 予想シミュレーター Pro</h1>
+            <p class="text-sm opacity-90 text-indigo-200">マルコフ推移マトリックス ＆ 高度統計分析AI搭載</p>
+        </div>
+
+        <div class="p-6 md:p-8 space-y-8">
+            
+            <!-- STEP 1: データ準備 -->
+            <section class="bg-slate-50 p-6 rounded-xl border border-slate-200">
+                <h2 class="text-xl font-bold border-b-2 border-indigo-500 pb-2 mb-2 text-slate-800">STEP 1: 過去データの準備</h2>
+                <p class="text-xs text-slate-500 mb-4 bg-white p-2 border border-slate-200 rounded">
+                    💡 同階層にある <code>MiniLotoData.txt</code> を自動的に読み込みます。<br>
+                    ファイルが見つからない場合は、テキストエリアに直接カンマ区切りのデータを貼り付けるか、「テスト用ダミーデータ生成」ボタンをご利用ください。
+                </p>
+                <textarea id="csvData" rows="6" class="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-xs font-mono mb-2 bg-white shadow-inner" placeholder="データを読み込み中...&#10;ファイルが存在しない場合は、ここにデータを直接貼り付けることができます。"></textarea>
+
+                <div class="mb-4 bg-white p-3 border border-indigo-200 rounded-lg shadow-sm">
+                    <span class="block text-sm font-bold text-slate-700 mb-2">解析モード選択:</span>
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <label class="flex items-center gap-2 cursor-pointer bg-slate-50 px-3 py-2 rounded border hover:bg-slate-100 transition">
+                            <input type="radio" name="analyzeMode" value="predict" checked class="text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                            <span class="text-sm text-slate-800"><b>通常予想</b> <span class="text-xs text-slate-500">（全データを使って次回の予想をする）</span></span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer bg-indigo-50 px-3 py-2 rounded border border-indigo-200 hover:bg-indigo-100 transition">
+                            <input type="radio" name="analyzeMode" value="backtest" class="text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                            <span class="text-sm font-bold text-indigo-700">過去検証（バックテスト） <span class="text-xs text-indigo-500 font-normal">（一番下の行を正解として隠し、テストする）</span></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="mt-3 flex flex-wrap gap-4">
+                    <button id="btnMockData" class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-2 px-4 rounded transition text-sm">
+                        🧪 テスト用ダミーデータ生成
+                    </button>
+                    <button id="btnAnalyze" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition flex items-center gap-2 w-full md:w-auto justify-center">
+                        <span class="text-lg">📊 データ解析とAI最適化を実行</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- STEP 2: 分析結果 -->
+            <section id="analysisSection" class="hidden">
+                <h2 id="analysisTitle" class="text-xl font-bold border-b-2 border-indigo-500 pb-2 mb-4 text-slate-800">STEP 2: データ解析結果 ＆ AI学習モデル</h2>
+                
+                <!-- 直近の当せん数字 -->
+                <div class="bg-white p-4 rounded-lg border border-slate-200 mb-6 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
+                    <div>
+                        <h3 class="font-bold text-slate-800 mb-1">📌 直近（最新回）の当せん数字</h3>
+                        <p class="text-xs text-slate-500">この結果を起点とし、マルコフ連鎖による推移確率と波及効果を計算します。</p>
+                    </div>
+                    <div id="latestDraw" class="flex gap-1 font-bold text-lg"></div>
+                </div>
+
+                <!-- 1. 基礎統計ダッシュボード -->
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mb-6 relative">
+                    <h3 class="font-bold text-slate-800 mb-3 border-b border-slate-100 pb-2 text-sm flex items-center gap-2">📊 マクロ指標・基本統計（過去全データの平均的傾向）</h3>
+                    <p class="text-[10px] text-slate-500 mb-3">これらの平均値から大きく逸脱する組み合わせは、統計学的に発生しにくいとAIが判断（ペナルティ付与）します。</p>
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4" id="macroStats">
+                        <!-- JSで挿入 -->
+                    </div>
+                    <!-- 番台（ブロック）のシェア -->
+                    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 mt-2">
+                        <h4 class="text-xs font-bold text-slate-600 mb-2">🚥 均等3区画ごとの全体出現シェア（ミニロト最適化版）</h4>
+                        <div id="blockShareStats" class="space-y-1">
+                            <!-- JSで挿入 -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. 特徴量・発生確率 -->
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mb-6">
+                    <h3 class="font-bold text-slate-800 mb-3 border-b border-slate-100 pb-2 text-sm flex items-center gap-2">🎲 特殊パターンの発生確率（予想への組み込み精査用）</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 text-sm" id="patternStats">
+                        <!-- JSで挿入 -->
+                    </div>
+                </div>
+
+                <h3 class="font-bold text-slate-800 mb-3 mt-6 text-sm">🔢 ミクロ分析・個別数字と関係性のランキング</h3>
+                
+                <!-- ミクロ分析UI（単一数字の評価） Row 1 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+                    <!-- 通算出現Top5 -->
+                    <div class="bg-rose-50 p-4 rounded-xl border border-rose-200 shadow-sm">
+                        <h3 class="font-bold text-rose-800 mb-2 border-b border-rose-200 pb-1 text-sm flex justify-between"><span>👑 通算出やすい</span></h3>
+                        <p class="text-[10px] text-rose-600 mb-2">本数字として最も選ばれている</p>
+                        <ul id="hotNumbers" class="space-y-2 text-sm text-rose-900 font-mono"></ul>
+                    </div>
+
+                    <!-- ボーナス出現Top5 -->
+                    <div class="bg-pink-50 p-4 rounded-xl border border-pink-200 shadow-sm">
+                        <h3 class="font-bold text-pink-800 mb-2 border-b border-pink-200 pb-1 text-sm flex justify-between"><span>🎁 ボーナス頻出</span></h3>
+                        <p class="text-[10px] text-pink-600 mb-2">ボーナス数字として選ばれている</p>
+                        <ul id="bonusNumbers" class="space-y-2 text-sm text-pink-900 font-mono"></ul>
+                    </div>
+
+                    <!-- 通算出ないWorst5 -->
+                    <div class="bg-slate-100 p-4 rounded-xl border border-slate-300 shadow-sm">
+                        <h3 class="font-bold text-slate-700 mb-2 border-b border-slate-300 pb-1 text-sm flex justify-between"><span>💤 通算出にくい</span></h3>
+                        <p class="text-[10px] text-slate-500 mb-2">本数字として最も選ばれていない</p>
+                        <ul id="worstNumbers" class="space-y-2 text-sm text-slate-800 font-mono"></ul>
+                    </div>
+
+                    <!-- 直近の勢いTop5 -->
+                    <div class="bg-orange-50 p-4 rounded-xl border border-orange-200 shadow-sm relative">
+                        <div class="absolute -top-3 -right-3 bg-orange-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow">Hot!</div>
+                        <h3 class="font-bold text-orange-800 mb-2 border-b border-orange-200 pb-1 text-sm flex justify-between"><span>📈 勢い急上昇</span></h3>
+                        <p class="text-[10px] text-orange-600 mb-2">最近急激に出現率が上がっている</p>
+                        <ul id="momentumNumbers" class="space-y-2 text-sm text-orange-900 font-mono"></ul>
+                    </div>
+
+                    <!-- 直近の冷え込みWorst5 -->
+                    <div class="bg-cyan-50 p-4 rounded-xl border border-cyan-200 shadow-sm relative">
+                        <div class="absolute -top-3 -right-3 bg-cyan-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow">Cold</div>
+                        <h3 class="font-bold text-cyan-800 mb-2 border-b border-cyan-200 pb-1 text-sm flex justify-between"><span>📉 勢い急降下 (逆張り)</span></h3>
+                        <p class="text-[10px] text-cyan-600 mb-2">最近急激に顔を出さなくなった</p>
+                        <ul id="coldMomentumNumbers" class="space-y-2 text-sm text-cyan-900 font-mono"></ul>
+                    </div>
+                </div>
+
+                <!-- ミクロ分析UI（関係性評価） Row 2 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    
+                    <!-- 引っ張りやすい Top5 -->
+                    <div class="bg-teal-50 p-4 rounded-xl border border-teal-200 shadow-sm">
+                        <h3 class="font-bold text-teal-800 mb-2 border-b border-teal-200 pb-1 text-sm flex justify-between"><span>🧲 引っ張りやすい</span></h3>
+                        <p class="text-[10px] text-teal-600 mb-2">「前回出た数字」が次回も出る回数</p>
+                        <ul id="pullNumbers" class="space-y-2 text-sm text-teal-900 font-mono"></ul>
+                    </div>
+
+                    <!-- 相性ペア -->
+                    <div class="bg-purple-50 p-4 rounded-xl border border-purple-200 shadow-sm">
+                        <h3 class="font-bold text-purple-800 mb-2 border-b border-purple-200 pb-1 text-sm flex justify-between"><span>💞 最強の相性ペア</span></h3>
+                        <p class="text-[10px] text-purple-600 mb-2">一緒に選ばれた回数 (同時出現)</p>
+                        <ul id="bestPairs" class="space-y-2 text-sm text-purple-900 font-mono"></ul>
+                    </div>
+
+                    <!-- 遷移確率 -->
+                    <div class="bg-amber-50 p-4 rounded-xl border border-amber-200 shadow-sm">
+                        <h3 class="font-bold text-amber-800 mb-2 border-b border-amber-200 pb-1 text-sm flex justify-between"><span>➡️ 前回からの流れ</span></h3>
+                        <p class="text-[10px] text-amber-600 mb-2">前回の数字の<b>直後</b>に出た回数</p>
+                        <ul id="bestTransitions" class="space-y-2 text-sm text-amber-900 font-mono"></ul>
+                    </div>
+
+                    <!-- スランプ・最大ハマり -->
+                    <div class="bg-blue-50 p-4 rounded-xl border border-blue-200 shadow-sm">
+                        <h3 class="font-bold text-blue-800 mb-2 border-b border-blue-200 pb-1 text-sm flex justify-between"><span>❄️ スランプ限界</span></h3>
+                        <p class="text-[10px] text-blue-600 mb-2">現在のハマり回数 / 過去最大</p>
+                        <ul id="coldNumbers" class="space-y-2 text-sm"></ul>
+                    </div>
+                </div>
+
+                <!-- 全31数字 詳細データ一覧 -->
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mb-6">
+                    <h3 class="font-bold text-slate-800 mb-3 border-b border-slate-100 pb-2 text-sm flex items-center gap-2">📋 全31数字 詳細アナリティクス一覧</h3>
+                    <p class="text-[10px] text-slate-500 mb-2">各数字の全体を通したパフォーマンスと現在の状態（ハマり・勢い）を一覧で確認できます。表はスクロール可能です。</p>
+                    <div class="overflow-x-auto max-h-80 overflow-y-auto border border-slate-200 rounded-lg">
+                        <table class="w-full text-sm text-left text-slate-600">
+                            <thead class="text-xs text-slate-700 uppercase bg-slate-100 sticky top-0 z-10 shadow-sm">
+                                <tr>
+                                    <th scope="col" class="px-4 py-3 text-center w-16">数字</th>
+                                    <th scope="col" class="px-4 py-3 text-right">通算出現回数</th>
+                                    <th scope="col" class="px-4 py-3 text-right">出現率</th>
+                                    <th scope="col" class="px-4 py-3 text-right">現在ハマり</th>
+                                    <th scope="col" class="px-4 py-3 text-right">最大ハマり</th>
+                                    <th scope="col" class="px-4 py-3 text-right">直近の勢い</th>
+                                </tr>
+                            </thead>
+                            <tbody id="allNumbersTable">
+                                <!-- JSで挿入 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- AI自己学習結果 -->
+                <div class="bg-slate-800 p-5 rounded-xl shadow-lg text-sm text-slate-200 mb-6">
+                    <h3 class="font-bold text-indigo-300 mb-2 border-b border-slate-600 pb-2 flex items-center gap-2">
+                        🤖 Fisher判別比に基づく特徴量ペナルティ最適化
+                    </h3>
+                    <p class="text-xs text-slate-400 mb-4">「過去の正解データ」と「ランダムなハズレ」の分布差を計算し、尤度を最大化するための評価ウェイトを自動配分しました。<br>上記の指標群のうち、どの要素を重視して予想アルゴリズムが動いているかを示します。</p>
+                    <div id="aiWeightsDisplay" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-3">
+                        <!-- JSでバーを挿入 -->
+                    </div>
+                </div>
+
+                <!-- ボリュームゾーン分布 -->
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm text-sm text-slate-700 hidden" id="histScoreSection">
+                    <h3 class="font-bold text-slate-800 mb-2 border-b pb-2">📊 基礎スコアのボリュームゾーン分析（ターゲット抽出）</h3>
+                    <p class="text-xs text-slate-500 mb-4">各回の抽せん時点で「それより前のデータ」を使って学習し、正解結果が何点の基礎スコアだったかの実績です。<br><span class="text-indigo-600 font-bold">シミュレーション時には、この「平均基礎スコア」に最も近い適度な波形が最終スコア10,000点となるよう自己補正します。</span></p>
+                    <div class="flex flex-col md:flex-row gap-8 items-center">
+                        <div class="w-full md:w-2/3">
+                            <div id="scoreDistribution" class="space-y-2">
+                                <!-- JSで挿入 -->
+                            </div>
+                        </div>
+                        <div class="w-full md:w-1/3 bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
+                            <span class="text-slate-500 font-bold text-xs block mb-1">ターゲット基礎スコア (平均)</span> 
+                            <b id="avgHistScore" class="text-4xl text-indigo-600 font-black tracking-tighter"></b>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- STEP 3: シミュレーション -->
+            <section id="simulationSection" class="hidden bg-slate-800 text-white p-6 rounded-xl shadow-2xl relative overflow-hidden mt-8">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500 rounded-full blur-3xl opacity-20 -mr-10 -mt-10 pointer-events-none"></div>
+                <h2 class="text-xl font-bold border-b border-slate-600 pb-2 mb-4 text-indigo-300 relative z-10">STEP 3: 予想シミュレーションの実行</h2>
+                
+                <!-- NEW: モード切り替えタブ -->
+                <div class="flex gap-2 mb-6 border-b border-slate-700 pb-0 relative z-10">
+                    <button id="tabAi" class="px-5 py-3 bg-indigo-600 text-white rounded-t-lg font-bold text-sm transition">🤖 AI最適化お任せ</button>
+                    <button id="tabCustom" class="px-5 py-3 bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white rounded-t-lg font-bold text-sm transition">⚙️ カスタム条件指定</button>
+                </div>
+
+                <!-- AI設定エリア (既存) -->
+                <div id="aiConfigArea" class="flex flex-col gap-5 mb-6 relative z-10">
+                    <div class="flex flex-col md:flex-row md:items-start gap-4">
+                        <label class="font-bold text-slate-300 shrink-0 mt-2 text-sm">計算モード:</label>
+                        <div class="flex flex-col gap-3 bg-slate-900/50 p-4 rounded-lg w-full border border-slate-700">
+                            <label class="flex items-start gap-2 cursor-pointer group">
+                                <input type="radio" name="simMode" value="count" checked class="mt-1 text-indigo-500 focus:ring-indigo-500 w-4 h-4">
+                                <span class="text-sm group-hover:text-white transition">回数指定モンテカルロ法<br><span class="text-xs text-slate-400">（指定した回数だけランダムに生成し、ボリュームゾーンに近いものを抽出）</span></span>
+                            </label>
+                            <label class="flex items-start gap-2 cursor-pointer group pt-2 border-t border-slate-700/50">
+                                <input type="radio" name="simMode" value="all" class="mt-1 text-indigo-500 focus:ring-indigo-500 w-4 h-4">
+                                <span class="text-sm text-indigo-300 font-bold group-hover:text-indigo-200 transition">全16万9,911パターン完全総当たり解析 (激選推奨)<br><span class="text-[10px] text-slate-400">（全通りを計算し、AIが特定した現実のボリュームゾーンに最も近い波を抽出。ミニロトなら数秒で完了します）</span></span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="flex flex-wrap items-center gap-6 p-4 bg-slate-900/30 rounded-lg border border-slate-700">
+                        <div id="countModeUI" class="flex items-center gap-2">
+                            <label class="font-bold text-slate-300 text-sm shrink-0">試行回数:</label>
+                            <select id="simCount" class="p-2 border border-slate-600 rounded bg-slate-800 text-white text-sm outline-none focus:border-indigo-500">
+                                <option value="10000">10,000回</option>
+                                <option value="50000" selected>50,000回</option>
+                                <option value="100000">100,000回</option>
+                                <option value="300000">300,000回</option>
+                            </select>
+                        </div>
+                        <div id="allModeUI" class="flex items-center gap-2 hidden">
+                            <span class="text-indigo-300 text-xs font-bold bg-indigo-900/50 px-3 py-1 rounded border border-indigo-700/50">※ブラウザの性能により処理時間が異なります</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NEW: カスタム設定エリア -->
+                <div id="customConfigArea" class="hidden flex flex-col gap-5 mb-6 relative z-10">
+                    <p class="text-xs text-slate-400 mb-2">解析されたデータを元に、自分の好みのトレンドに合致する数字を重み付きで抽出（ルーレット選択）します。</p>
+                    
+                    <div class="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
+                        <h3 class="font-bold text-indigo-300 text-sm mb-3">📌 軸数字の指定（絶対に含める数字：最大4個）</h3>
+                        <div id="axisNumbers" class="flex flex-wrap gap-2">
+                            <!-- JSでボタン生成 -->
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900/50 p-5 rounded-lg border border-slate-700 space-y-6">
+                        <h3 class="font-bold text-indigo-300 text-sm mb-2 border-b border-slate-700 pb-2">🎚️ 数字抽出のトレンド設定</h3>
+                        
+                        <div>
+                            <div class="flex justify-between text-xs text-slate-300 mb-2">
+                                <span>🧊 出にくい (Cold)</span>
+                                <span class="font-bold text-white">通算出現の傾向</span>
+                                <span>🔥 出やすい (Hot)</span>
+                            </div>
+                            <input type="range" id="weightFreq" min="-100" max="100" value="0" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                        </div>
+                        
+                        <div>
+                            <div class="flex justify-between text-xs text-slate-300 mb-2">
+                                <span>📉 勢い下降 (逆張り)</span>
+                                <span class="font-bold text-white">直近の勢い (モメンタム)</span>
+                                <span>📈 勢い上昇 (順張り)</span>
+                            </div>
+                            <input type="range" id="weightMom" min="-100" max="100" value="0" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                        </div>
+                        
+                        <div>
+                            <div class="flex justify-between text-xs text-slate-300 mb-2">
+                                <span>✨ 出たばかり</span>
+                                <span class="font-bold text-white">現在のハマり度合い</span>
+                                <span>💤 大ハマり (スランプ)</span>
+                            </div>
+                            <input type="range" id="weightInt" min="-100" max="100" value="0" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 共通の予想口数設定 -->
+                <div class="flex items-center justify-between p-4 bg-slate-900 rounded-lg border border-slate-700 relative z-10 mb-6">
+                    <span class="font-bold text-slate-300 text-sm">出力する予想口数:</span>
+                    <div class="flex items-center gap-2">
+                        <input type="number" id="ticketCount" min="1" max="30" value="5" class="p-2 border border-slate-600 rounded bg-slate-800 text-white font-bold outline-none focus:border-indigo-500 w-24 text-center">
+                        <span class="text-slate-400 text-sm">口</span>
+                    </div>
+                </div>
+
+                <button id="btnSimulate" class="w-full relative overflow-hidden bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black py-4 px-4 rounded-xl shadow-[0_0_15px_rgba(79,70,229,0.5)] transition flex justify-center items-center gap-2 text-lg z-10 group">
+                    <span class="relative z-10" id="btnSimulateText">🎰 最新アルゴリズムで予想を生成する</span>
+                    <div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity"></div>
+                </button>
+            </section>
+
+            <!-- 結果表示 -->
+            <section id="resultSection" class="hidden mt-12">
+                <h2 class="text-2xl font-black text-center text-slate-800 mb-8 tracking-wide">✨ AI最適化 予想結果 ✨</h2>
+                <div id="predictionResults" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- JSで結果を挿入 -->
+                </div>
+            </section>
+
+        </div>
+    </div>
+
+    <script>
+        // --- データサイエンス用 グローバル変数 ---
+        let totalDraws = 0;
+        let testTargetDraw = null;
+        let testTargetBonus = [];
+        let isCustomMode = false;
+        let selectedAxisNumbers = [];
+
+        // 統計モデル全体を保持するオブジェクト (ミニロト版は31までなので32で確保)
+        let statsData = {
+            lastDraw: [],        
+            mainFreq: Array(32).fill(0),
+            bonusFreq: Array(32).fill(0),
+            coMatrix: [], 
+            transitionMatrix: [],
+            momentumMap: [], 
+            decadeProb: {}, 
+            intervals: Array(32).fill(0),
+            maxIntervals: Array(32).fill(0),
+            intervalHistory: Array.from({length: 32}, () => []),
+            pastDrawsMasks: [], 
+            exp: {
+                sum: { mean: 80, std: 15 },
+                odd: { mean: 2.5, std: 1.0 },
+                highLow: { mean: 2.5, std: 1.0 }, 
+                consec: { mean: 0.5, std: 0.7 },
+                pull: { mean: 0.8, std: 0.8 },
+                intSum: { mean: 28, std: 10 },
+                intStd: { mean: 6, std: 3 },
+                coScore: { mean: 10, std: 4 },
+                transScore: { mean: 5, std: 2 },
+                indvIntZ: { mean: 0, std: 1 },
+                momentum: { mean: 0, std: 1 },
+                adjPull: { mean: 1.0, std: 0.8 }, 
+                decade: { mean: 0.05, std: 0.02 },
+                block: { mean: 3.5, std: 0.8 },
+                digitDup: { mean: 0.8, std: 0.8 } 
+            },
+            features: { sums:[], odds:[], highLows:[], consecs:[], pulls:[], intSums:[], intStds:[], coScores:[], transScores:[], indvIntZs:[], momentums:[], decProbs:[], adjPulls:[], blockCovers:[], digitDups:[], emptyBlocks:[], bonusPulls:[] },
+            weights: { sum: 100, odd: 100, highLow: 100, consec: 100, pull: 100, int: 100, intStd: 100, coScore: 100, trans: 100, indvInt: 100, momentum: 100, adj: 100, dec: 100, block: 100, digitDup: 100 },
+            histMean: 8500,
+            histStd: 500
+        };
+
+        const elements = {
+            csvData: document.getElementById('csvData'),
+            btnMockData: document.getElementById('btnMockData'),
+            btnAnalyze: document.getElementById('btnAnalyze'),
+            analysisSection: document.getElementById('analysisSection'),
+            analysisTitle: document.getElementById('analysisTitle'),
+            latestDraw: document.getElementById('latestDraw'),
+            macroStats: document.getElementById('macroStats'),
+            blockShareStats: document.getElementById('blockShareStats'), 
+            patternStats: document.getElementById('patternStats'),
+            hotNumbers: document.getElementById('hotNumbers'),
+            bonusNumbers: document.getElementById('bonusNumbers'), 
+            momentumNumbers: document.getElementById('momentumNumbers'),
+            worstNumbers: document.getElementById('worstNumbers'),
+            coldMomentumNumbers: document.getElementById('coldMomentumNumbers'), 
+            pullNumbers: document.getElementById('pullNumbers'), 
+            allNumbersTable: document.getElementById('allNumbersTable'),
+            simulationSection: document.getElementById('simulationSection'),
+            bestPairs: document.getElementById('bestPairs'),
+            bestTransitions: document.getElementById('bestTransitions'),
+            coldNumbers: document.getElementById('coldNumbers'),
+            aiWeightsDisplay: document.getElementById('aiWeightsDisplay'),
+            histScoreSection: document.getElementById('histScoreSection'),
+            scoreDistribution: document.getElementById('scoreDistribution'),
+            avgHistScore: document.getElementById('avgHistScore'),
+            
+            tabAi: document.getElementById('tabAi'),
+            tabCustom: document.getElementById('tabCustom'),
+            aiConfigArea: document.getElementById('aiConfigArea'),
+            customConfigArea: document.getElementById('customConfigArea'),
+            axisNumbers: document.getElementById('axisNumbers'),
+            weightFreq: document.getElementById('weightFreq'),
+            weightMom: document.getElementById('weightMom'),
+            weightInt: document.getElementById('weightInt'),
+
+            modeRadios: document.querySelectorAll('input[name="simMode"]'),
+            countModeUI: document.getElementById('countModeUI'),
+            allModeUI: document.getElementById('allModeUI'),
+            simCount: document.getElementById('simCount'),
+            ticketCount: document.getElementById('ticketCount'),
+            btnSimulate: document.getElementById('btnSimulate'),
+            btnSimulateText: document.getElementById('btnSimulateText'),
+            resultSection: document.getElementById('resultSection'),
+            predictionResults: document.getElementById('predictionResults')
+        };
+
+        // --- 初期データ読み込み ---
+        fetch('MiniLotoData.txt')
+            .then(response => {
+                if (!response.ok) throw new Error('データが見つかりませんでした。');
+                return response.text();
+            })
+            .then(data => {
+                elements.csvData.value = data;
+                elements.csvData.placeholder = "データを読み込みました。";
+            })
+            .catch(error => {
+                console.log('初期データの読み込みをスキップしました:', error);
+            });
+
+        // --- UIイベント: モード切り替え ---
+        elements.modeRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                elements.countModeUI.classList.add('hidden');
+                elements.allModeUI.classList.add('hidden');
+                if (e.target.value === 'count') elements.countModeUI.classList.remove('hidden');
+                else if (e.target.value === 'all') elements.allModeUI.classList.remove('hidden');
+            });
+        });
+
+        elements.tabAi.addEventListener('click', () => {
+            isCustomMode = false;
+            elements.tabAi.classList.replace('bg-slate-700', 'bg-indigo-600');
+            elements.tabAi.classList.replace('text-slate-300', 'text-white');
+            elements.tabCustom.classList.replace('bg-indigo-600', 'bg-slate-700');
+            elements.tabCustom.classList.replace('text-white', 'text-slate-300');
+            elements.aiConfigArea.classList.remove('hidden');
+            elements.customConfigArea.classList.add('hidden');
+            elements.btnSimulateText.innerText = "🎰 最新アルゴリズムで予想を生成する";
+        });
+
+        elements.tabCustom.addEventListener('click', () => {
+            isCustomMode = true;
+            elements.tabCustom.classList.replace('bg-slate-700', 'bg-indigo-600');
+            elements.tabCustom.classList.replace('text-slate-300', 'text-white');
+            elements.tabAi.classList.replace('bg-indigo-600', 'bg-slate-700');
+            elements.tabAi.classList.replace('text-white', 'text-slate-300');
+            elements.customConfigArea.classList.remove('hidden');
+            elements.aiConfigArea.classList.add('hidden');
+            elements.btnSimulateText.innerText = "⚙️ 条件に従って重み付き抽出を実行";
+        });
+        
+        elements.ticketCount.addEventListener('change', (e) => {
+            let val = parseInt(e.target.value);
+            if(isNaN(val) || val < 1) e.target.value = 1;
+            if(val > 30) e.target.value = 30;
+        });
+
+        function initAxisButtons() {
+            let axisHtml = '';
+            for(let i=1; i<=31; i++){
+                axisHtml += `<button class="axis-btn w-10 h-10 rounded-full bg-slate-800 border border-slate-600 text-sm font-bold text-slate-300 hover:bg-indigo-500 hover:text-white transition" data-num="${i}">${i}</button>`;
+            }
+            elements.axisNumbers.innerHTML = axisHtml;
+            selectedAxisNumbers = [];
+
+            document.querySelectorAll('.axis-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    let num = parseInt(e.target.dataset.num);
+                    if(selectedAxisNumbers.includes(num)) {
+                        selectedAxisNumbers = selectedAxisNumbers.filter(n => n !== num);
+                        e.target.classList.remove('bg-indigo-500', 'text-white', 'ring-2', 'ring-indigo-300');
+                        e.target.classList.add('bg-slate-800', 'text-slate-300');
+                    } else {
+                        if(selectedAxisNumbers.length >= 4) { alert('軸数字（固定する数字）は最大4個までです。'); return; }
+                        selectedAxisNumbers.push(num);
+                        e.target.classList.remove('bg-slate-800', 'text-slate-300');
+                        e.target.classList.add('bg-indigo-500', 'text-white', 'ring-2', 'ring-indigo-300');
+                    }
+                });
+            });
+        }
+        initAxisButtons();
+
+        function getBallColorClass(num) {
+            // ミニロト用に3ブロック分割の色分けに調整 (1-10, 11-20, 21-31)
+            if (num >= 1 && num <= 10) return 'ball-yellow';
+            if (num >= 11 && num <= 20) return 'ball-blue';
+            if (num >= 21 && num <= 31) return 'ball-red';
+            return 'bg-slate-500';
+        }
+
+        function countConsecutives(nums) {
+            let count = 0;
+            for(let i = 0; i < nums.length - 1; i++) if(nums[i+1] - nums[i] === 1) count++;
+            return count;
+        }
+
+        function getDecadeKey(nums) {
+            // ミニロト用に1〜10, 11〜20, 21〜31 の3区画でキーを作成
+            let d = [0,0,0];
+            for(let i=0; i<nums.length; i++) {
+                if(nums[i] <= 10) d[0]++;
+                else if(nums[i] <= 20) d[1]++;
+                else d[2]++;
+            }
+            return d.join(':');
+        }
+
+        function countAdjacent(nums, refNums) {
+            if (!refNums || refNums.length === 0) return 0;
+            let count = 0;
+            for(let i=0; i<nums.length; i++) {
+                let n = nums[i];
+                if (refNums.includes(n - 1) || refNums.includes(n + 1)) count++;
+            }
+            return count;
+        }
+
+        function getBlockCover(nums) {
+            let blocks = new Set();
+            for(let i=0; i<nums.length; i++) {
+                if(nums[i] <= 10) blocks.add(1);
+                else if(nums[i] <= 20) blocks.add(2);
+                else blocks.add(3);
+            }
+            return blocks.size;
+        }
+
+        function generateRandom5() {
+            let available = Array.from({length: 31}, (_, i) => i + 1);
+            let picked = [];
+            for(let i = 0; i < 5; i++) {
+                let r = Math.floor(Math.random() * available.length);
+                picked.push(available[r]);
+                available.splice(r, 1);
+            }
+            return picked.sort((a, b) => a - b);
+        }
+        
+        function countSetBits(n) {
+            let count = 0;
+            while (n > 0n) {
+                n &= (n - 1n);
+                count++;
+            }
+            return count;
+        }
+
+        elements.btnMockData.addEventListener('click', () => {
+            let csv = [];
+            for (let i = 1; i <= 300; i++) {
+                let mainDraw = generateRandom5();
+                let available = Array.from({length: 31}, (_, i) => i + 1).filter(n => !mainDraw.includes(n));
+                let bonusDraw = [available[Math.floor(Math.random()*available.length)]];
+                csv.push(`第${i}回,${mainDraw.join(',')},${bonusDraw.join(',')}`);
+            }
+            elements.csvData.value = csv.join('\n');
+            alert('300回分のミニロト用ダミーデータを生成しました。');
+        });
+
+        function parseMiniLotoLine(line) {
+            let tokens = line.split(/[\s,]+/);
+            let nums = tokens.filter(t => /^\d+$/.test(t)).map(n => parseInt(n, 10)).filter(n => n >= 1 && n <= 31);
+            if (nums.length >= 5) {
+                let mainNums = nums.slice(0, 5);
+                let isSorted = true;
+                for(let i=0; i<4; i++) { if(mainNums[i] >= mainNums[i+1]) isSorted = false; }
+                if(isSorted) return nums; 
+                return [...mainNums.sort((a, b) => a - b), ...nums.slice(5)];
+            }
+            return null;
+        }
+
+        function getPenalty(z, weight) {
+            if (z <= 0.5) return 0;
+            return Math.pow(z - 0.5, 2) * weight; 
+        }
+
+        function extractFeatures(draw, model) {
+            let sum = 0, oddCount = 0, pullCount = 0, consecCount = 0;
+            let highCount = 0; 
+            let digitCounts = [0,0,0,0,0,0,0,0,0,0];
+            let intervalsSum = 0, momentumSum = 0, coScore = 0, transScore = 0, indvIntZSum = 0;
+            let drawMask = 0n; 
+
+            let pDraw = model.lastDraw || [];
+            let tMat = model.transitionMatrix;
+            let cMat = model.coMatrix;
+            let intv = model.intervals;
+            let momMap = model.momentumMap;
+            let intHist = model.intervalHistory;
+
+            for (let i = 0; i < 5; i++) {
+                let n = draw[i];
+                sum += n;
+                if (n % 2 !== 0) oddCount++;
+                if (n >= 16) highCount++; // ミニロトのHighは16以上(16〜31)とする
+                digitCounts[n % 10]++;
+                
+                let isPull = false;
+                for(let k=0; k<pDraw.length; k++) if(pDraw[k] === n) { isPull = true; break; }
+                if(isPull) pullCount++;
+                
+                if (i < 4 && draw[i+1] - n === 1) consecCount++;
+                drawMask |= (1n << BigInt(n));
+                
+                let iVal = intv ? intv[n] : 0;
+                intervalsSum += iVal;
+                momentumSum += momMap ? momMap[n] : 0;
+                
+                if (cMat) {
+                    for (let j = i + 1; j < 5; j++) coScore += cMat[n][draw[j]];
+                }
+
+                if (intHist && intHist[n] && intHist[n].length > 0) {
+                    let h = intHist[n];
+                    let len = h.length;
+                    let m = 0; for(let k=0; k<len; k++) m += h[k]; m /= len;
+                    let v = 0; for(let k=0; k<len; k++) v += (h[k]-m)*(h[k]-m);
+                    let s = Math.sqrt(v/len) || 1;
+                    indvIntZSum += Math.abs(iVal - m) / s;
+                }
+                
+                if (pDraw.length > 0 && tMat) {
+                    for(let k=0; k<pDraw.length; k++) transScore += tMat[pDraw[k]][n];
+                }
+            }
+
+            let digitDup = 0;
+            for(let i=0; i<10; i++) {
+                if(digitCounts[i] > 1) digitDup += (digitCounts[i] - 1);
+            }
+
+            let maxPastMatch = 0;
+            if (model.pastDrawsMasks) {
+                let len = model.pastDrawsMasks.length;
+                for(let i=0; i<len; i++) {
+                    let match = countSetBits(drawMask & model.pastDrawsMasks[i]);
+                    if (match > maxPastMatch) maxPastMatch = match;
+                    if (maxPastMatch >= 4) break; 
+                }
+            }
+            
+            let intMean = intervalsSum / 5;
+            let intVar = 0;
+            for(let i=0; i<5; i++) {
+                let diff = (intv ? intv[draw[i]] : 0) - intMean;
+                intVar += diff * diff;
+            }
+            let intStd = Math.sqrt(intVar/5);
+            
+            let adjCount = countAdjacent(draw, pDraw);
+            let decKey = getDecadeKey(draw);
+            let p_dec = model.decadeProb ? (model.decadeProb[decKey] || 0) : 0;
+            let blockCover = getBlockCover(draw);
+
+            let e = model.exp;
+            let z = (val, mean, std, minStd=0.5) => Math.abs(val - mean) / Math.max(std, minStd);
+
+            return { 
+                sum: z(sum, e.sum.mean, e.sum.std, 1.0), 
+                odd: z(oddCount, e.odd.mean, e.odd.std),
+                highLow: z(highCount, e.highLow.mean, e.highLow.std), 
+                consec: z(consecCount, e.consec.mean, e.consec.std), 
+                pull: z(pullCount, e.pull.mean, e.pull.std), 
+                int: z(intervalsSum, e.intSum.mean, e.intSum.std, 1.0), 
+                intStd: z(intStd, e.intStd.mean, e.intStd.std), 
+                coScore: z(coScore, e.coScore.mean, e.coScore.std, 1.0), 
+                trans: z(transScore, e.transScore.mean, e.transScore.std, 1.0),
+                indvInt: z(indvIntZSum, e.indvIntZ.mean, e.indvIntZ.std, 0.5),
+                momentum: z(momentumSum, e.momentum.mean, e.momentum.std), 
+                adj: z(adjCount, e.adjPull.mean, e.adjPull.std), 
+                dec: z(p_dec, e.decade.mean, e.decade.std, 0.01), 
+                block: z(blockCover, (e.block || e.blockCover).mean, (e.block || e.blockCover).std),
+                digitDup: z(digitDup, e.digitDup.mean, e.digitDup.std),
+                pastMatch: maxPastMatch,
+                raw: { sum, oddCount, highCount, pullCount, consecCount, intSum: intervalsSum, transScore }
+            };
+        }
+
+        function calcRawScore(draw, model, weights) {
+            let f = extractFeatures(draw, model);
+            let score = 10000;
+            
+            for(let k of Object.keys(weights)) {
+                if(f[k] !== undefined) score -= getPenalty(f[k], weights[k]);
+            }
+            
+            if (f.pastMatch >= 5) score -= 8000;
+            else if (f.pastMatch === 4) score -= 3000;
+            else if (f.pastMatch === 3) score -= 300;
+
+            return { score: score, ...f.raw };
+        }
+
+        function trainWeights(validLines, tempModel) {
+            let dummyData = [];
+            for(let i=0; i<1500; i++) dummyData.push(generateRandom5());
+
+            let targetLines = validLines.slice(-200).map(line => line.slice(0,5).sort((a,b)=>a-b));
+            let keys = ['sum', 'odd', 'highLow', 'consec', 'pull', 'int', 'intStd', 'coScore', 'trans', 'indvInt', 'momentum', 'adj', 'dec', 'block', 'digitDup'];
+            
+            let tFeats = {}; let dFeats = {};
+            keys.forEach(k => { tFeats[k] = []; dFeats[k] = []; });
+
+            targetLines.forEach(d => {
+                let f = extractFeatures(d, tempModel);
+                keys.forEach(k => tFeats[k].push(getPenalty(f[k], 1))); 
+            });
+            dummyData.forEach(d => {
+                let f = extractFeatures(d, tempModel);
+                keys.forEach(k => dFeats[k].push(getPenalty(f[k], 1)));
+            });
+
+            let scores = {}; let totalScore = 0;
+            
+            keys.forEach(k => {
+                let tMean = tFeats[k].reduce((a,b)=>a+b,0) / tFeats[k].length;
+                let dMean = dFeats[k].reduce((a,b)=>a+b,0) / dFeats[k].length;
+                let tVar = tFeats[k].reduce((a,b)=>a+Math.pow(b-tMean,2),0) / tFeats[k].length;
+                let dVar = dFeats[k].reduce((a,b)=>a+Math.pow(b-dMean,2),0) / dFeats[k].length;
+                
+                let diff = Math.max(0.001, dMean - tMean); 
+                let denom = Math.sqrt(tVar + dVar * 0.5) || 1; 
+                
+                scores[k] = Math.log1p(diff / denom);
+                totalScore += scores[k];
+            });
+
+            let bestWeights = {};
+            keys.forEach(k => {
+                let ratio = totalScore > 0 ? (scores[k] / totalScore) : (1/keys.length);
+                bestWeights[k] = 20 + (ratio * 1200); 
+            });
+            return bestWeights;
+        }
+
+        function calculateStatsModel(lines) {
+            let mainFreq = Array(32).fill(0);
+            let bonusFreq = Array(32).fill(0);
+            let freqShort = Array(32).fill(0), freqMid = Array(32).fill(0);
+            let tDraws = 0;
+            
+            let coMatrix = Array.from({length: 32}, () => Array(32).fill(0));
+            let transitionMatrix = Array.from({length: 32}, () => Array(32).fill(0));
+            let decadeCounts = {};
+            
+            let fLists = { sums:[], odds:[], highLows:[], consecs:[], pulls:[], intSums:[], intStds:[], coScores:[], transScores:[], indvIntZs:[], momentums:[], decProbs:[], adjPulls:[], blockCovers:[], digitDups:[], emptyBlocks:[], bonusPulls:[] };
+            
+            let tempIntervals = Array(32).fill(0); 
+            let maxIntervals = Array(32).fill(0);
+            let intervalHistory = Array.from({length: 32}, () => []);
+            let pastDrawsMasks = [];
+            let pDraw = null;
+            let pBonus = []; // 前回のボーナス数字を保持
+
+            let wShort = Math.min(5, lines.length), wMid = Math.min(15, lines.length);
+            lines.slice(-wShort).forEach(nums => nums.slice(0, 5).forEach(n => freqShort[n]++));
+            lines.slice(-wMid).forEach(nums => nums.slice(0, 5).forEach(n => freqMid[n]++));
+            
+            // 第一ループ：全体統計（確率・マトリックス）の事前集計
+            lines.forEach(nums => {
+                let mainNums = nums.slice(0, 5);
+
+                mainNums.forEach(n => { if(n<=31) mainFreq[n]++; });
+                if (nums.length > 5) {
+                    for (let i = 5; i < nums.length; i++) {
+                        if(nums[i]<=31) bonusFreq[nums[i]]++;
+                    }
+                }
+                
+                let mask = 0n;
+                for(let i=0; i<mainNums.length; i++) {
+                    mask |= (1n << BigInt(mainNums[i]));
+                    for(let j=i+1; j<mainNums.length; j++) {
+                        coMatrix[mainNums[i]][mainNums[j]]++;
+                        coMatrix[mainNums[j]][mainNums[i]]++;
+                    }
+                }
+                pastDrawsMasks.push(mask);
+                
+                decadeCounts[getDecadeKey(mainNums)] = (decadeCounts[getDecadeKey(mainNums)] || 0) + 1;
+                tDraws++;
+            });
+
+            let decadeProb = {};
+            for(let k in decadeCounts) decadeProb[k] = decadeCounts[k] / tDraws;
+
+            let momentumMap = Array(32).fill(0);
+            for(let i=1; i<=31; i++) {
+                let pShort = freqShort[i] / wShort, pMid = freqMid[i] / wMid, pAll = mainFreq[i] / tDraws;
+                momentumMap[i] = (pShort - pMid) * 1.5 + (pMid - pAll);
+            }
+
+            // 第二ループ：特徴量（fLists）の抽出
+            lines.forEach(nums => {
+                let mainNums = nums.slice(0, 5);
+                let currentBonus = nums.length > 5 ? nums.slice(5) : [];
+
+                // fLists への追加
+                fLists.sums.push(mainNums.reduce((a,b)=>a+b, 0));
+                fLists.odds.push(mainNums.filter(n => n%2 !== 0).length);
+                fLists.highLows.push(mainNums.filter(n => n >= 16).length);
+                fLists.consecs.push(countConsecutives(mainNums));
+                fLists.blockCovers.push(getBlockCover(mainNums));
+                fLists.decProbs.push(decadeProb[getDecadeKey(mainNums)] || 0);
+                
+                let dCounts = [0,0,0,0,0,0,0,0,0,0];
+                mainNums.forEach(n => dCounts[n%10]++);
+                let dDup = 0; dCounts.forEach(c => { if(c>1) dDup+=(c-1); });
+                fLists.digitDups.push(dDup);
+
+                // ミニロト用3区画（1-10, 11-20, 21-31）の空白判定
+                let bCounts = [0,0,0];
+                mainNums.forEach(n => { if(n<=10) bCounts[0]++; else if(n<=20) bCounts[1]++; else bCounts[2]++; });
+                fLists.emptyBlocks.push(bCounts.includes(0) ? 1 : 0);
+                
+                if (pDraw !== null) {
+                    fLists.pulls.push(mainNums.filter(n => pDraw.includes(n)).length);
+                    fLists.adjPulls.push(countAdjacent(mainNums, pDraw));
+                    pDraw.forEach(pn => mainNums.forEach(cn => transitionMatrix[pn][cn]++));
+                    
+                    // 前回ボーナスからの昇格カウント
+                    let bPull = mainNums.filter(n => pBonus.includes(n)).length;
+                    fLists.bonusPulls.push(bPull);
+
+                    let tScore = 0;
+                    pDraw.forEach(pn => mainNums.forEach(cn => tScore += transitionMatrix[pn][cn]));
+                    fLists.transScores.push(tScore);
+                }
+                
+                let invs = mainNums.map(n => tempIntervals[n]);
+                let iSum = invs.reduce((a,b)=>a+b,0);
+                fLists.intSums.push(iSum);
+                let iMean = iSum/5;
+                fLists.intStds.push(Math.sqrt(invs.reduce((a,b)=>a+Math.pow(b-iMean,2),0)/5));
+                
+                let iZSum = 0;
+                mainNums.forEach(n => {
+                    let hist = intervalHistory[n];
+                    if (hist.length > 0) {
+                        let m = hist.reduce((a,b)=>a+b,0)/hist.length;
+                        let s = Math.sqrt(hist.reduce((a,b)=>a+Math.pow(b-m,2),0)/hist.length) || 1;
+                        iZSum += Math.abs(tempIntervals[n] - m) / s;
+                    }
+                });
+                fLists.indvIntZs.push(iZSum);
+
+                let cScore = 0;
+                for(let i=0; i<mainNums.length; i++) {
+                    for(let j=i+1; j<mainNums.length; j++) cScore += coMatrix[mainNums[i]][mainNums[j]];
+                }
+                fLists.coScores.push(cScore);
+                fLists.momentums.push(mainNums.reduce((acc, n) => acc + momentumMap[n], 0));
+                
+                for(let i=1; i<=31; i++) {
+                    if (mainNums.includes(i)) {
+                        intervalHistory[i].push(tempIntervals[i]);
+                        if (tempIntervals[i] > maxIntervals[i]) maxIntervals[i] = tempIntervals[i];
+                        tempIntervals[i] = 0;
+                    } else {
+                        tempIntervals[i]++;
+                    }
+                }
+                pDraw = mainNums;
+                pBonus = currentBonus;
+            });
+
+            const calcMean = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
+            const calcStd = (arr, mean) => arr.length ? Math.sqrt(arr.reduce((a,b)=>a+Math.pow(b-mean,2),0)/arr.length) || 0 : 0;
+
+            let exp = {};
+            for(let key in fLists) {
+                let mean = calcMean(fLists[key]);
+                exp[key.replace(/s$/, '')] = { mean: mean, std: Math.max(calcStd(fLists[key], mean), 0.1) }; 
+            }
+            exp.intSum = exp.intSum || exp.int; exp.intStd = exp.intStd || exp.int; exp.adjPull = exp.adjPull || exp.adj;
+            exp.decade = exp.decProb || exp.dec; exp.transScore = exp.transScore || exp.tran; exp.indvIntZ = exp.indvIntZ || exp.indvInt;
+            exp.block = exp.blockCover || exp.block; exp.highLow = exp.highLow || exp.high; exp.digitDup = exp.digitDup || exp.digit;
+
+            return { mainFreq, bonusFreq, tDraws, lastDraw: pDraw, coMatrix, transitionMatrix, momentumMap, decadeProb, intervals: tempIntervals, maxIntervals, intervalHistory, pastDrawsMasks, exp, features: fLists };
+        }
+
+        elements.btnAnalyze.addEventListener('click', () => {
+            const rawData = elements.csvData.value.trim();
+            if (!rawData) { alert('データが入力されていません。'); return; }
+
+            elements.btnAnalyze.disabled = true;
+            elements.btnAnalyze.innerHTML = `<div class="loader border-white border-top-transparent w-4 h-4 border-2"></div> <span>AI解析中...</span>`;
+
+            setTimeout(() => {
+                let validLines = [];
+                rawData.split('\n').forEach(line => {
+                    let nums = parseMiniLotoLine(line);
+                    if (nums && nums.length >= 5) validLines.push(nums);
+                });
+
+                if (validLines.length < 5) { alert('データが足りません。'); elements.btnAnalyze.disabled = false; return; }
+
+                const mode = document.querySelector('input[name="analyzeMode"]:checked').value;
+                testTargetDraw = null; testTargetBonus = [];
+                if (mode === 'backtest') {
+                    let testData = validLines.pop(); 
+                    testTargetDraw = testData.slice(0, 5).sort((a,b)=>a-b);
+                    if (testData.length > 5) testTargetBonus = testData.slice(5);
+                }
+
+                let finalModel = calculateStatsModel(validLines);
+                let optWeights = trainWeights(validLines, finalModel);
+                finalModel.weights = optWeights;
+
+                let histScores = []; let tScore = 0;
+                if (validLines.length > 20) {
+                    for (let i = Math.max(20, validLines.length - 200); i < validLines.length; i++) { 
+                        let tempModel = calculateStatsModel(validLines.slice(0, i));
+                        let eval = calcRawScore(validLines[i].slice(0,5).sort((a,b)=>a-b), tempModel, optWeights);
+                        histScores.push({ index: i, score: eval.score });
+                        tScore += eval.score;
+                    }
+                }
+                
+                finalModel.histMean = histScores.length ? tScore / histScores.length : 8500;
+                finalModel.histStd = histScores.length ? Math.max(Math.sqrt(histScores.reduce((a,b)=>a+Math.pow(b.score-finalModel.histMean,2),0)/histScores.length), 100) : 500;
+                
+                statsData = finalModel;
+
+                displayAnalysis();
+                displayHistScores(histScores);
+
+                elements.analysisSection.classList.remove('hidden');
+                elements.simulationSection.classList.remove('hidden');
+                elements.resultSection.classList.add('hidden');
+
+                elements.btnAnalyze.disabled = false;
+                elements.btnAnalyze.innerHTML = `<span>📊 データ解析とAI最適化を実行</span>`;
+            }, 50); 
+        });
+
+        function displayAnalysis() {
+            elements.analysisTitle.innerHTML = `STEP 2: データ解析結果 ＆ AI学習モデル` + (testTargetDraw ? ` <span class="text-sm text-white bg-indigo-500 px-2 py-1 rounded ml-2">🔍 過去検証モード</span>` : ``);
+            
+            elements.latestDraw.innerHTML = '';
+            statsData.lastDraw.forEach(n => elements.latestDraw.innerHTML += `<div class="ball-mini rounded-full flex items-center justify-center text-white shadow ${getBallColorClass(n)}">${n}</div>`);
+
+            const exp = statsData.exp;
+            elements.macroStats.innerHTML = `
+                <div class="bg-slate-50 p-3 rounded border border-slate-200 text-center">
+                    <div class="text-[10px] text-slate-500 mb-1">平均合計値</div>
+                    <div class="text-xl font-black text-slate-800">${exp.sum.mean.toFixed(1)}</div>
+                    <div class="text-[9px] text-slate-400">± ${exp.sum.std.toFixed(1)}</div>
+                </div>
+                <div class="bg-slate-50 p-3 rounded border border-slate-200 text-center">
+                    <div class="text-[10px] text-slate-500 mb-1">奇数 : 偶数 比</div>
+                    <div class="text-xl font-black text-slate-800">${exp.odd.mean.toFixed(1)} <span class="text-sm text-slate-400 font-normal">:</span> ${(5 - exp.odd.mean).toFixed(1)}</div>
+                </div>
+                <div class="bg-slate-50 p-3 rounded border border-slate-200 text-center">
+                    <div class="text-[10px] text-slate-500 mb-1">High(16~) : Low 比</div>
+                    <div class="text-xl font-black text-slate-800">${exp.highLow.mean.toFixed(1)} <span class="text-sm text-slate-400 font-normal">:</span> ${(5 - exp.highLow.mean).toFixed(1)}</div>
+                </div>
+                <div class="bg-slate-50 p-3 rounded border border-slate-200 text-center">
+                    <div class="text-[10px] text-slate-500 mb-1">平均 連番発生数</div>
+                    <div class="text-xl font-black text-slate-800">${exp.consec.mean.toFixed(2)} <span class="text-xs font-normal text-slate-500">組</span></div>
+                </div>
+                <div class="bg-slate-50 p-3 rounded border border-slate-200 text-center">
+                    <div class="text-[10px] text-slate-500 mb-1">平均 引っ張り数</div>
+                    <div class="text-xl font-black text-slate-800">${exp.pull.mean.toFixed(2)} <span class="text-xs font-normal text-slate-500">個</span></div>
+                </div>
+                <div class="bg-slate-50 p-3 rounded border border-slate-200 text-center">
+                    <div class="text-[10px] text-slate-500 mb-1">平均 同尾数</div>
+                    <div class="text-xl font-black text-slate-800">${exp.digitDup.mean.toFixed(2)} <span class="text-xs font-normal text-slate-500">組</span></div>
+                </div>
+            `;
+
+            // ミニロト用3区画でのシェア計算
+            let blocks = [0, 0, 0];
+            for(let i=1; i<=31; i++) {
+                if(i <= 10) blocks[0] += statsData.mainFreq[i];
+                else if(i <= 20) blocks[1] += statsData.mainFreq[i];
+                else blocks[2] += statsData.mainFreq[i];
+            }
+            let totalBlocks = blocks.reduce((a,b)=>a+b, 0);
+            let blockPct = blocks.map(b => ((b/totalBlocks)*100).toFixed(1));
+            
+            elements.blockShareStats.innerHTML = `
+                <div class="flex justify-between text-xs text-slate-600 mb-1 px-1">
+                    <span class="w-1/3 text-center">1〜10 (${blockPct[0]}%)</span>
+                    <span class="w-1/3 text-center">11〜20 (${blockPct[1]}%)</span>
+                    <span class="w-1/3 text-center">21〜31 (${blockPct[2]}%)</span>
+                </div>
+                <div class="flex h-3 rounded-full overflow-hidden w-full shadow-inner">
+                    <div class="bg-yellow-400" style="width: ${blockPct[0]}%"></div>
+                    <div class="bg-blue-400" style="width: ${blockPct[1]}%"></div>
+                    <div class="bg-red-400" style="width: ${blockPct[2]}%"></div>
+                </div>
+            `;
+
+            const f = statsData.features;
+            const tLen = f.sums.length || 1;
+            const prob = (arr, condition) => ((arr.filter(condition).length / tLen) * 100).toFixed(1);
+
+            elements.patternStats.innerHTML = `
+                <div class="flex justify-between items-center p-2 border-b border-slate-100">
+                    <span class="text-slate-600">いずれかの区画(10区切り)が1つも出ない</span>
+                    <span class="font-bold text-indigo-600 text-lg">${prob(f.emptyBlocks, x => x === 1)}%</span>
+                </div>
+                <div class="flex justify-between items-center p-2 border-b border-slate-100">
+                    <span class="text-slate-600">連番が1組以上含まれる</span>
+                    <span class="font-bold text-indigo-600 text-lg">${prob(f.consecs, x => x > 0)}%</span>
+                </div>
+                <div class="flex justify-between items-center p-2 border-b border-slate-100">
+                    <span class="text-slate-600">前回からの引っ張りが1個以上</span>
+                    <span class="font-bold text-indigo-600 text-lg">${prob(f.pulls, x => x > 0)}%</span>
+                </div>
+                <div class="flex justify-between items-center p-2 border-b border-slate-100">
+                    <span class="text-slate-600">前回のボーナス数字が本数字に昇格</span>
+                    <span class="font-bold text-indigo-600 text-lg">${prob(f.bonusPulls, x => x > 0)}%</span>
+                </div>
+                <div class="flex justify-between items-center p-2 border-b border-slate-100">
+                    <span class="text-slate-600">同尾数(下1桁同じ)が含まれる</span>
+                    <span class="font-bold text-indigo-600 text-lg">${prob(f.digitDups, x => x > 0)}%</span>
+                </div>
+                <div class="flex justify-between items-center p-2 border-b border-slate-100">
+                    <span class="text-slate-600">合計値が極端に低い (50未満)</span>
+                    <span class="font-bold text-indigo-600 text-lg">${prob(f.sums, x => x < 50)}%</span>
+                </div>
+            `;
+
+            let freqArr = [];
+            for(let i=1; i<=31; i++) freqArr.push({n: i, c: statsData.mainFreq[i]});
+            freqArr.sort((a,b)=>b.c - a.c);
+            
+            elements.hotNumbers.innerHTML = freqArr.slice(0,5).map(item => `
+                <li class="flex justify-between items-center bg-white p-2 rounded border border-rose-100">
+                    <div class="ball-mini rounded-full flex items-center justify-center text-white ${getBallColorClass(item.n)}">${item.n}</div>
+                    <span class="font-bold text-rose-700">${item.c}回</span>
+                </li>
+            `).join('');
+
+            let bonusArr = [];
+            for(let i=1; i<=31; i++) bonusArr.push({n: i, c: statsData.bonusFreq[i]});
+            bonusArr.sort((a,b)=>b.c - a.c);
+            
+            elements.bonusNumbers.innerHTML = bonusArr.slice(0,5).map(item => `
+                <li class="flex justify-between items-center bg-white p-2 rounded border border-pink-100">
+                    <div class="ball-mini rounded-full flex items-center justify-center text-white ${getBallColorClass(item.n)}">${item.n}</div>
+                    <span class="font-bold text-pink-700">${item.c}回</span>
+                </li>
+            `).join('');
+
+            let worstArr = [...freqArr].sort((a,b)=>a.c - b.c);
+            elements.worstNumbers.innerHTML = worstArr.slice(0,5).map(item => `
+                <li class="flex justify-between items-center bg-white p-2 rounded border border-slate-200">
+                    <div class="ball-mini rounded-full flex items-center justify-center text-white ${getBallColorClass(item.n)}">${item.n}</div>
+                    <span class="font-bold text-slate-600">${item.c}回</span>
+                </li>
+            `).join('');
+
+            let momArr = [];
+            for(let i=1; i<=31; i++) momArr.push({n: i, m: statsData.momentumMap[i]});
+            momArr.sort((a,b)=>b.m - a.m);
+            elements.momentumNumbers.innerHTML = momArr.slice(0,5).map(item => `
+                <li class="flex justify-between items-center bg-white p-2 rounded border border-orange-100">
+                    <div class="ball-mini rounded-full flex items-center justify-center text-white ${getBallColorClass(item.n)}">${item.n}</div>
+                    <span class="font-bold text-orange-600">${item.m > 0 ? '+'+item.m.toFixed(3) : item.m.toFixed(3)}</span>
+                </li>
+            `).join('');
+
+            let coldMomArr = [...momArr].reverse();
+            elements.coldMomentumNumbers.innerHTML = coldMomArr.slice(0,5).map(item => `
+                <li class="flex justify-between items-center bg-white p-2 rounded border border-cyan-100">
+                    <div class="ball-mini rounded-full flex items-center justify-center text-white ${getBallColorClass(item.n)}">${item.n}</div>
+                    <span class="font-bold text-cyan-700">${item.m.toFixed(3)}</span>
+                </li>
+            `).join('');
+
+            let pullArr = [];
+            for(let i=1; i<=31; i++) pullArr.push({n: i, c: (statsData.transitionMatrix[i] ? statsData.transitionMatrix[i][i] : 0)});
+            pullArr.sort((a,b)=>b.c - a.c);
+            elements.pullNumbers.innerHTML = pullArr.slice(0,5).map(item => `
+                <li class="flex justify-between items-center bg-white p-2 rounded border border-teal-100">
+                    <span class="font-bold flex items-center gap-1 text-teal-700"><div class="ball-mini rounded-full flex items-center justify-center text-white ${getBallColorClass(item.n)}">${item.n}</div> ➔ <div class="ball-mini rounded-full flex items-center justify-center text-white ${getBallColorClass(item.n)}">${item.n}</div></span>
+                    <span class="font-bold text-teal-700">${item.c}回</span>
+                </li>
+            `).join('');
+
+            let pairs = [];
+            for(let i=1; i<=31; i++) for(let j=i+1; j<=31; j++) if(statsData.coMatrix[i] && statsData.coMatrix[i][j]>0) pairs.push({p1:i, p2:j, c:statsData.coMatrix[i][j]});
+            elements.bestPairs.innerHTML = pairs.sort((a,b)=>b.c-a.c).slice(0,5).map(p => `
+                <li class="flex justify-between items-center bg-white p-2 rounded border border-purple-100">
+                    <span class="flex gap-1"><span class="bg-purple-100 text-purple-800 px-1 rounded">${p.p1}</span> & <span class="bg-purple-100 text-purple-800 px-1 rounded">${p.p2}</span></span>
+                    <span class="font-bold text-purple-700">${p.c}回</span>
+                </li>
+            `).join('');
+
+            let trans = [];
+            if (statsData.lastDraw && statsData.transitionMatrix) {
+                statsData.lastDraw.forEach(pn => {
+                    for(let i=1; i<=31; i++) if(statsData.transitionMatrix[pn][i]>0) trans.push({pn:pn, cn:i, c:statsData.transitionMatrix[pn][i]});
+                });
+            }
+            let nextNumScores = Array(32).fill(0);
+            trans.forEach(t => nextNumScores[t.cn] += t.c);
+            let topNext = [];
+            for(let i=1; i<=31; i++) if(nextNumScores[i]>0) topNext.push({num:i, score:nextNumScores[i]});
+            
+            elements.bestTransitions.innerHTML = topNext.sort((a,b)=>b.score-a.score).slice(0,5).map(n => `
+                <li class="flex justify-between items-center bg-white p-2 rounded border border-amber-100">
+                    <span class="font-bold flex items-center gap-2">➔ <div class="ball-mini rounded-full flex items-center justify-center text-white ${getBallColorClass(n.num)}">${n.num}</div></span>
+                    <span class="text-amber-700 text-xs">遷移波及: ${n.score}Pt</span>
+                </li>
+            `).join('');
+
+            let intervals = [];
+            for (let i = 1; i <= 31; i++) intervals.push({ num: i, int: statsData.intervals[i], max: statsData.maxIntervals[i] });
+            elements.coldNumbers.innerHTML = intervals.sort((a,b)=>b.int-a.int).slice(0,5).map(i => {
+                let ratio = Math.min(100, (i.int / i.max) * 100);
+                let isDanger = ratio >= 90;
+                return `
+                <li class="bg-white p-2 rounded border border-blue-100">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="font-bold text-slate-700">${i.num}</span>
+                        <span class="text-xs ${isDanger?'text-red-500 font-bold':'text-blue-600'}">${i.int}回 ハマり</span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-1.5 flex overflow-hidden">
+                        <div class="${isDanger?'bg-red-500':'bg-blue-400'}" style="width: ${ratio}%"></div>
+                    </div>
+                    <div class="text-[9px] text-right text-slate-400 mt-0.5">過去最大: ${i.max}回</div>
+                </li>
+            `}).join('');
+
+            let tableHtml = '';
+            for (let i = 1; i <= 31; i++) {
+                let count = statsData.mainFreq[i];
+                let rate = statsData.tDraws > 0 ? ((count / statsData.tDraws) * 100).toFixed(1) : 0;
+                let currentInt = statsData.intervals[i];
+                let maxInt = statsData.maxIntervals[i];
+                let mom = statsData.momentumMap[i] || 0;
+                let momStr = mom > 0 ? `<span class="text-orange-500 font-bold">+${mom.toFixed(3)}</span>` : `<span class="text-cyan-600">${mom.toFixed(3)}</span>`;
+                
+                tableHtml += `
+                    <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+                        <td class="px-4 py-2 font-bold"><div class="ball-mini rounded-full flex items-center justify-center text-white mx-auto ${getBallColorClass(i)}">${i}</div></td>
+                        <td class="px-4 py-2 text-right font-mono text-slate-700">${count}回</td>
+                        <td class="px-4 py-2 text-right font-mono text-slate-500">${rate}%</td>
+                        <td class="px-4 py-2 text-right font-mono ${currentInt > 10 ? 'text-red-500 font-bold' : 'text-slate-700'}">${currentInt}回</td>
+                        <td class="px-4 py-2 text-right font-mono text-slate-500">${maxInt}回</td>
+                        <td class="px-4 py-2 text-right font-mono">${momStr}</td>
+                    </tr>
+                `;
+            }
+            elements.allNumbersTable.innerHTML = tableHtml;
+
+            let map = [
+                { k: 'trans', n: 'マルコフ推移(流れ)' }, { k: 'indvInt', n: '個別周期(限界)' }, { k: 'coScore', n: '相関ネットワーク' },
+                { k: 'intStd', n: '混ざり具合(分散)' }, { k: 'momentum', n: 'トレンド勢い' }, { k: 'adj', n: '隣接波及' },
+                { k: 'dec', n: '番台グループ偏り' }, { k: 'block', n: '区画分散' }, { k: 'consec', n: '連番数異常' },
+                { k: 'sum', n: '合計値異常' }, { k: 'odd', n: '奇偶比バランス' }, { k: 'pull', n: '引っ張り異常' }, 
+                { k: 'int', n: '総ハマり異常' }, { k: 'highLow', n: '高低(High/Low)比' }, { k: 'digitDup', n: '同尾数重複' }
+            ].sort((a,b) => statsData.weights[b.k] - statsData.weights[a.k]);
+
+            let totalW = Object.values(statsData.weights).reduce((a,b)=>a+b,0);
+            elements.aiWeightsDisplay.innerHTML = map.map((m, i) => {
+                let p = ((statsData.weights[m.k]/totalW)*100).toFixed(1);
+                let isTop = i < 3;
+                return `
+                    <div class="mb-2 bg-slate-700/50 p-2 rounded">
+                        <div class="flex justify-between text-[10px] mb-1 ${isTop?'text-indigo-300 font-bold':'text-slate-400'}">
+                            <span>${m.n} ${isTop?'👑':''}</span><span>${p}%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 rounded-full h-1.5"><div class="${isTop?'bg-indigo-400':'bg-slate-500'} h-1.5 rounded-full" style="width:${p}%"></div></div>
+                    </div>
+                `}).join('');
+        }
+
+        function displayHistScores(scores) {
+            if(!scores.length) { elements.histScoreSection.classList.add('hidden'); return; }
+            elements.histScoreSection.classList.remove('hidden');
+            elements.avgHistScore.textContent = Math.round(statsData.histMean);
+            
+            let dist = [{l:'9500点~',min:9500,c:0,col:'bg-red-400'},{l:'9000~9499',min:9000,c:0,col:'bg-amber-400'},{l:'8500~8999',min:8500,c:0,col:'bg-green-400'},{l:'~8499',min:-9999,c:0,col:'bg-blue-400'}];
+            scores.forEach(s => { for(let i=0; i<dist.length; i++) if(s.score >= dist[i].min) { dist[i].c++; break; } });
+            
+            let maxC = Math.max(...dist.map(d=>d.c));
+            elements.scoreDistribution.innerHTML = dist.map(d => `
+                <div class="flex items-center text-xs gap-2">
+                    <div class="w-16 text-slate-600 font-bold text-right">${d.l}</div>
+                    <div class="flex-1 bg-slate-100 h-4 rounded overflow-hidden"><div class="${d.col} h-full" style="width:${(d.c/maxC)*100}%"></div></div>
+                    <div class="w-8 text-slate-500 text-right">${d.c}</div>
+                </div>
+            `).join('');
+        }
+
+        function evaluateDraw(draw) {
+            let base = calcRawScore(draw, statsData, statsData.weights);
+            let diff = Math.abs(base.score - statsData.histMean);
+            let zDiff = diff / Math.max(statsData.histStd, 50);
+            let finalScore = 10000 - (zDiff * 250); 
+            
+            if (finalScore < 0) finalScore = 0;
+            return { score: finalScore, rawScore: base.score, sum: base.sum, oddCount: base.oddCount, pullCount: base.pullCount, consecCount: base.consecCount, transScore: base.transScore };
+        }
+
+        function generateCustomDraws(tCount) {
+            let axis = [...selectedAxisNumbers];
+            let wFreq = parseInt(elements.weightFreq.value) / 100;
+            let wMom = parseInt(elements.weightMom.value) / 100;
+            let wInt = parseInt(elements.weightInt.value) / 100;
+
+            let norm = (val, arr) => {
+                let validArr = arr.slice(1);
+                let max = Math.max(...validArr), min = Math.min(...validArr);
+                if(max === min) return 0;
+                return ((val - min) / (max - min)) * 2 - 1; 
+            };
+
+            let weights = Array(32).fill(0);
+            for(let i=1; i<=31; i++) {
+                let fNorm = norm(statsData.mainFreq[i], statsData.mainFreq);
+                let mNorm = norm(statsData.momentumMap[i], statsData.momentumMap);
+                let iNorm = norm(statsData.intervals[i], statsData.intervals);
+                
+                let score = 10 + (wFreq * fNorm * 10) + (wMom * mNorm * 10) + (wInt * iNorm * 10);
+                weights[i] = Math.max(0.1, score); 
+            }
+
+            let results = [];
+            for(let i=0; i<tCount; i++) {
+                let d = [...axis];
+                let available = [];
+                for(let j=1; j<=31; j++) if(!axis.includes(j)) available.push(j);
+
+                while(d.length < 5) {
+                    let totalW = available.reduce((acc, num) => acc + weights[num], 0);
+                    let r = Math.random() * totalW;
+                    let current = 0;
+                    for(let j=0; j<available.length; j++) {
+                        current += weights[available[j]];
+                        if(r <= current) {
+                            d.push(available[j]);
+                            available.splice(j, 1);
+                            break;
+                        }
+                    }
+                }
+                d.sort((a,b)=>a-b);
+                results.push({d: d, e: evaluateDraw(d)}); 
+            }
+            return results;
+        }
+
+        elements.btnSimulate.addEventListener('click', () => {
+            const tCount = parseInt(elements.ticketCount.value) || 5;
+            
+            elements.btnSimulate.disabled = true;
+            elements.btnSimulate.innerHTML = `<div class="loader border-white border-top-transparent"></div> <span class="relative z-10">演算中...</span>`;
+            elements.resultSection.classList.add('hidden');
+
+            setTimeout(() => {
+                if (isCustomMode) {
+                    let preds = generateCustomDraws(tCount);
+                    renderResults(preds, "カスタム条件・重み付き抽出", "カスタム条件抽出");
+                    
+                    elements.btnSimulate.disabled = false;
+                    elements.btnSimulate.innerHTML = `<span class="relative z-10" id="btnSimulateText">⚙️ 条件に従って重み付き抽出を実行</span>`;
+                    elements.resultSection.classList.remove('hidden');
+                    elements.resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+                } else {
+                    const mode = document.querySelector('input[name="simMode"]:checked').value;
+                    if (mode === 'count') runCountMode(parseInt(elements.simCount.value), tCount);
+                    else runAllMode(tCount);
+                }
+            }, 50);
+        });
+
+        function runCountMode(iters, tCount) {
+            let res = [];
+            for (let i = 0; i < iters; i++) {
+                let d = generateRandom5();
+                res.push({ d: d, e: evaluateDraw(d) });
+            }
+            processResults(res.sort((a,b)=>b.e.score - a.e.score), tCount, iters, "モンテカルロ法");
+        }
+
+        function runAllMode(tCount) {
+            const TOTAL = 169911; // ミニロト全組み合わせ 31C5
+            let processed = 0, topRes = [], minScore = -Infinity, combo = [1,2,3,4,5], isDone = false;
+            
+            function chunk() {
+                const startTime = performance.now();
+                
+                while (!isDone && (performance.now() - startTime < 15)) {
+                    let cCount = 0;
+                    while (cCount < 2000 && !isDone) {
+                        let d = [combo[0], combo[1], combo[2], combo[3], combo[4]];
+                        let e = evaluateDraw(d);
+                        
+                        if (e.score > minScore) {
+                            topRes.push({d:d, e:e}); 
+                            topRes.sort((a,b)=>b.e.score - a.e.score);
+                            if (topRes.length > tCount*3) topRes.pop(); 
+                            if (topRes.length === tCount*3) minScore = topRes[topRes.length-1].e.score;
+                        }
+                        
+                        let i = 4;
+                        while (i >= 0 && combo[i] === 27 + i) i--; // 31 - 5 + 1 + i
+                        if (i < 0) isDone = true;
+                        else { 
+                            combo[i]++; 
+                            for (let j=i+1; j<5; j++) combo[j] = combo[j-1]+1; 
+                        }
+                        cCount++; processed++;
+                    }
+                }
+
+                if (isDone) {
+                    processResults(topRes, tCount, TOTAL, "完全総当たり解析");
+                } else {
+                    let pct = ((processed/TOTAL)*100).toFixed(1);
+                    elements.btnSimulate.innerHTML = `
+                        <div class="loader border-white border-top-transparent"></div> 
+                        <div class="flex flex-col items-center ml-2">
+                            <span class="text-sm font-bold relative z-10">全パターン解析中... ${pct}%</span>
+                            <div class="w-32 bg-indigo-900 rounded-full h-1 mt-1"><div class="bg-white h-1 rounded-full" style="width:${pct}%"></div></div>
+                        </div>`;
+                    
+                    requestAnimationFrame(chunk);
+                }
+            }
+            
+            requestAnimationFrame(chunk);
+        }
+
+        function processResults(results, tCount, iters, modeName) {
+            let unique = [], seen = new Set();
+            for (let r of results) {
+                let k = r.d.join(',');
+                if (!seen.has(k)) { seen.add(k); unique.push(r); if(unique.length >= tCount*2) break; }
+            }
+            
+            let preds = [unique[0]]; 
+            let cands = unique.slice(1);
+            for (let i=cands.length-1; i>0; i--) { let j=Math.floor(Math.random()*(i+1)); [cands[i],cands[j]] = [cands[j],cands[i]]; }
+            for (let i=0; i<tCount-1 && i<cands.length; i++) preds.push(cands[i]);
+
+            renderResults(preds, iters, modeName);
+            
+            elements.btnSimulate.disabled = false;
+            elements.btnSimulate.innerHTML = `<span class="relative z-10" id="btnSimulateText">🎰 最新アルゴリズムで予想を生成する</span>`;
+            elements.resultSection.classList.remove('hidden');
+            elements.resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function renderResults(preds, itersInfo, modeName) {
+            let calcSpace = typeof itersInfo === 'number' ? `${itersInfo.toLocaleString()} 通り` : itersInfo;
+            
+            let infoHtml = `
+                <div class="col-span-full text-center text-sm text-slate-700 mb-2 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <b class="text-indigo-600 text-lg block mb-2">${modeName} 完了</b>
+                    計算空間 <b>${calcSpace}</b> を評価し、<br>
+                    ${isCustomMode ? 'あなたの指定したトレンド条件と軸数字に合致する <b>' + preds.length + ' パターン</b>を生成しました。' : 'AIが特定した「現実に出現しやすい偏り（ボリュームゾーン）」に最も合致した <b>' + preds.length + ' パターン</b>を抽出しました。'}
+                </div>
+            `;
+
+            if (testTargetDraw) {
+                let te = evaluateDraw(testTargetDraw);
+                infoHtml += `
+                    <div class="col-span-full mb-4 p-4 bg-slate-800 text-white rounded-xl shadow-lg border border-slate-700">
+                        <b class="text-indigo-300 block mb-2 text-sm">🎯 バックテスト（過去検証）答え合わせ</b>
+                        <p class="text-xs text-slate-400 mb-3">隠しておいた「最新回の正解」です。以下の予想と比較してください。</p>
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-xs font-bold text-slate-400 w-12">本数字:</span>
+                            ${testTargetDraw.map(n => `<div class="ball-mini rounded-full flex items-center justify-center font-bold ${getBallColorClass(n)}">${n}</div>`).join('')}
+                        </div>
+                        <div class="text-xs text-slate-300 bg-slate-900 inline-block px-3 py-1.5 rounded border border-slate-700">
+                            この正解の最適化尤度スコア: <span class="text-indigo-400 font-bold text-base">${Math.round(te.score)}</span> 点
+                        </div>
+                    </div>
+                `;
+            }
+
+            let html = infoHtml + preds.map((p, i) => {
+                let mCount = 0, bMatch = 0;
+                if (testTargetDraw) {
+                    p.d.forEach(n => { if (testTargetDraw.includes(n)) mCount++; else if (testTargetBonus.includes(n)) bMatch++; });
+                }
+
+                let cardHtml = `
+                    <div class="bg-white p-5 rounded-xl shadow-md border ${(!isCustomMode && i===0)?'border-indigo-400 ring-2 ring-indigo-100':'border-slate-200'} relative overflow-hidden flex flex-col">
+                        ${(!isCustomMode && i===0)?'<div class="absolute top-0 left-0 bg-indigo-500 text-white text-[10px] font-bold px-3 py-1 rounded-br-lg shadow z-10">AI 本命推奨</div>':''}
+                        
+                        <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-4 mt-2">
+                            <span class="font-black text-slate-700 text-lg tracking-widest">予想 ${i + 1}</span>
+                            <div class="text-right">
+                                <div class="text-[10px] text-slate-400">尤度スコア</div>
+                                <div class="text-xl font-black ${p.e.score>=9000?'text-red-500':'text-indigo-600'}">${Math.round(p.e.score)}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex flex-wrap gap-2 md:gap-3 justify-center mb-5 flex-grow">
+                            ${p.d.map(n => `<div class="loto-ball ${getBallColorClass(n)} ${selectedAxisNumbers.includes(n) ? 'ring-4 ring-indigo-500 ring-offset-2' : ''}">${n}</div>`).join('')}
+                        </div>
+                        
+                        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 text-xs text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100 mt-auto">
+                            <div class="flex flex-col"><span class="text-slate-400">マルコフ波及</span><b class="text-amber-600">${Math.round(p.e.transScore)} Pt</b></div>
+                            <div class="flex flex-col"><span class="text-slate-400">引っ張り数</span><b class="${p.e.pullCount>0?'text-blue-600':''}">${p.e.pullCount} 個</b></div>
+                            <div class="flex flex-col"><span class="text-slate-400">奇偶(奇:偶)</span><b>${p.e.oddCount}:${5-p.e.oddCount}</b></div>
+                            <div class="flex flex-col"><span class="text-slate-400">合計値</span><b>${p.e.sum}</b></div>
+                        </div>
+                `;
+
+                // ミニロト等級判定
+                if (testTargetDraw) {
+                    let pText = "ハズレ", bgClass = "bg-slate-50 text-slate-500 border-slate-200";
+                    if(mCount===5){pText="👑 1等相当！";bgClass="bg-red-100 text-red-700 border-red-300 font-bold";}
+                    else if(mCount===4&&bMatch>=1){pText="✨ 2等相当！";bgClass="bg-orange-100 text-orange-700 border-orange-300 font-bold";}
+                    else if(mCount===4){pText="🎉 3等相当！";bgClass="bg-orange-50 text-orange-700 border-orange-200 font-bold";}
+                    else if(mCount===3){pText="👍 4等相当";bgClass="bg-blue-50 text-blue-700 border-blue-200 font-bold";}
+                    
+                    cardHtml += `<div class="mt-4 p-3 text-center text-sm border rounded-lg ${bgClass}">結果: 本数字 <b>${mCount}</b> 個一致${bMatch>0?` (B <b>${bMatch}</b> 個)`:''} ➔ <span class="text-base ml-2">${pText}</span></div>`;
+                }
+                cardHtml += `</div>`;
+                return cardHtml;
+            }).join('');
+            
+            elements.predictionResults.innerHTML = html;
+        }
+    </script>
+</body>
+</html>
